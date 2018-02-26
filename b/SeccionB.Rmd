@@ -1,0 +1,79 @@
+---
+title: "Culiacán"
+author: "Manuel Ríos"
+date: ''
+output:
+  pdf_document: default
+  html_document: default
+---
+```{r, echo=FALSE, include=FALSE, message=FALSE, warning=FALSE}
+source("load-clean-model.R")
+```
+
+
+**1. Mapa**
+
+En el siguiente mapa se muestran las zonas desarrolladas entre 2010 y 2016. Para obtener estas areas, se realizo un mapa con las manzanas de 2010 y del 2016, posteriormente se verifico el *overlap* que existe entre estos layers. Aquellas manzanas que no tienen overlap, las consideramos como las nuevas zonas que se desarrollaron entre 2010 y 2016.
+
+Nuevas manzanas desarrolladas: 8898
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+nuevas_mza %>%
+  leaflet() %>%
+  addProviderTiles("CartoDB.Positron") %>%
+  addPolygons(
+    weight=0.5,
+    fillOpacity=0.4
+  )
+```
+
+
+**2 . Estimación**
+
+Para realizar el cálculo de la población en las nuevas manzanas, se hizo un modelo lineal para predecir el logaritmo de la población total en base al logaritmo del area de la manzana. El uso de logaritmos se da porque representan un mejor relación lineal.
+
+Antes de realizar el modelo, se calculó la tasa promedio de crecimiento en Culiacan en los ultimos 6 años segun las proyecciones de población de la Conapo. Esta tasa permitio estimar la población por manzana al año 2017.
+
+La tasa de crecimiento promedio en Culicana es 1.53% anual.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+# calculo de crecimiento promedio
+proyecciones %>%
+  slice(1:8) %>%
+  mutate(
+    proyeccion_anterior = lag(proyeccion),
+    crecimiento = ((proyeccion/proyeccion_anterior)-1) * 100
+  ) %>%
+  summarize(
+    crecimiento_promedio = mean(crecimiento, na.rm=TRUE)
+  )
+```
+
+
+\clearpage
+
+El modelo que se corrio fue de la forma:
+```{r, eval=FALSE}
+model <- lm(log(pobtot) ~ log(area), data=manzanas_2010_df)
+```
+
+Lo resultados fueron los siguientes:
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{rrrrr}
+  \hline
+ & Estimate & Std. Error & t value & Pr($>$$|$t$|$) \\ 
+  \hline
+(Intercept) & 0.3477 & 0.0876 & 3.97 & 0.0001 \\ 
+  log(area) & 0.4252 & 0.0104 & 41.06 & 0.0000 \\ 
+   \hline
+\end{tabular}
+\end{table}
+
+R2 = 0.146
+
+
+A pesar de tener un R2 bajo, el modelo predice mejor la población por manzana que estimando proporciones de población por area y calculando el numero de personas para las nuevas areas.
+
+La base completa para todas las manzanas se puede consultar en *data/pob_manzanas.csv*.

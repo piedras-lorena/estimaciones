@@ -1,0 +1,217 @@
+---
+title: "Bebés"
+author: ' '
+date: ' '
+output:
+  pdf_document: default
+  html_document: default
+---
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+source("load.R")
+```
+
+
+**1. Mapa**
+
+El siguiente mapa muestra los AGEBS en la zona de Toluca.
+
+```{r, include=FALSE, warning=FALSE, message=FALSE}
+# Calculo del total de AGEBS en Toluca
+nrow(agebs_toluca)
+```
+
+Total de AGEBS en Toluca: 255
+
+```{r, echo=FALSE}
+# Mapa
+agebs_toluca %>%
+  leaflet() %>%
+  addProviderTiles("CartoDB.Positron") %>%
+  addPolygons(
+    weight=0.7,
+    fillOpacity=0.2,
+    opacity=0.6,
+    popup=~cve_ageb
+  )
+```
+
+
+**2. Censo Poblacional y Vivienda 2010**
+
+El Censo de Población y Vivienda del 2010 cuenta con 190 indicadores a nivel AGEBS y manzana de diferentes localidades en México. Para los AGEBS de Toluca haremos uso de 3 variables:
+
+```{r ,echo=FALSE, eval=FALSE, include=FALSE, message=FALSE, warning=FALSE}
+library(xtable)
+table <- tibble(
+  nombre <- c("Clave del Ageb", "Numero de la manzana", "Poblacion Total"),
+  id <- c("cve_ageb", "mza", "pobtot"),
+  tipo <- c("Id", "Id", "Numerico")
+)
+names(table) <- c("Nombre", "Identificador", "Tipo de Dato")
+print(xtable(table))
+```
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{rlll}
+  \hline
+ & Nombre & Identificador & Tipo de Dato \\ 
+  \hline
+1 & Clave del Ageb & cve\_ageb & Id \\ 
+  2 & Numero de la manzana & mza & Id \\ 
+  3 & Poblacion Total & pobtot & Numerico \\ 
+   \hline
+\end{tabular}
+\end{table}
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+# seleccionamos las columnas a usar de todo el data frame
+toluca_censo %>%
+  filter(pobtot > 0) %>%
+  filter(mza != "000") %>%
+  select(ageb, mza, pobtot) -> toluca_censo_f
+```
+
+
+*Preparación de la base de datos*
+
+En algunos AGEBS la población total es igual a cero. Esto sucede cuando un AGEB es un parque, una central de abastos, o cualquier otra zona con delimitación donde no hay viviendas habitables. Estas observaciones seran removidas de la base.
+
+Debido a que las observaciones son por AGEB/Manzana, es necesario agrupar por AGEB para obtener el número total de personas por AGEB. Una vez realizado esto, calculamos el porcentaje que representa la población total de cada AGEB con respecto a la poblacion total de Toluca, de tal manera que nuestra base de datos queda de la siguiente manera:
+
+```{r, echo=FALSE, include=FALSE, message=FALSE, warning=FALSE}
+toluca_censo_f %>%
+  mutate(poblacion_total = sum(pobtot)) %>% 
+  group_by(ageb) %>%
+  summarize(
+    poblacion_ageb = sum(pobtot),
+    poblacion_toluca = mean(poblacion_total),
+    porcentaje_de_la_poblacion_ageb = (poblacion_ageb/poblacion_toluca)) %>%
+  select(ageb, poblacion_ageb, porcentaje_de_la_poblacion_ageb) -> base_agebs
+write_csv(base_agebs, "data/pop_por_ageb.csv")
+# crear base para renderear
+```
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{rlrr}
+  \hline
+ & ageb & poblacion\_ageb & porcentaje\_de\_la\_poblacion\_ageb \\ 
+  \hline
+1 & 0241 & 5692 & 0.01 \\ 
+  2 & 0294 & 6636 & 0.01 \\ 
+  3 & 0307 & 4550 & 0.01 \\ 
+  4 & 0330 & 4763 & 0.01 \\ 
+  5 & 0345 & 3724 & 0.00 \\ 
+  6 & 035A & 5489 & 0.01 \\ 
+   \hline
+\end{tabular}
+\end{table}
+
+La proporción puntual de cada AGEB se puede ver en *data/pob_por_ageb.csv*.
+
+**3 . Niños entre 0 y 6 meses al día de hoy**
+
+El Consejo Nacional de Poblacion cuenta con proyecciones de población para distintintas localidades de México para el periodo 2010-2030. Segun estas proyecciones, la población en Toluca pasara de 942,279 personas en 2017 a 955,652 personas en 2018. Esto representa un aumento de 13,373 personas por año. Bajo esta proyeccion, y bajo la suposicion de que los nacimientos se distribuyen de la misma manera mensualmente, inferimos que cada mes en Toluca nacen aproximadamente 1,114 niños. Estas dos cifras son consistentes con los registros de natalidad en los ultimos años en Toluca (http://www.inegi.org.mx/lib/olap/consulta/general_ver4/MDXQueryDatos.asp?#Regreso&c=23699).
+
+Bajo esta observacion, en los ultimos 6 meses en Toluca se han registrado 6,686 nacimientos. 
+
+```{r, echo=FALSE, include=FALSE}
+# calculo de proyecciones de la CONAPO
+# y la diferencia entre ellas
+proyecciones %>%
+  gather(anio, poblacion, 5:25) %>% 
+  filter(
+    anio == "2017" | anio == "2018"
+  ) %>%
+  group_by(anio) %>%
+  summarize(
+    poblacion_total = sum(poblacion)
+  ) %>%
+  spread(
+    anio, poblacion_total
+  ) %>%
+  rename(
+    poblacion_total_2017 = "2017",
+    poblacoin_total_2018 = "2018"
+  ) %>%
+  mutate(
+    aumento_poblacion = poblacoin_total_2018 - poblacion_total_2017
+  ) 
+```
+
+```{r, echo=FALSE, include=FALSE}
+# calculo de nacimiento mensuales
+# esta cifra es consiste con los registros mensuales
+# existen algunas diferencias entre los meses, principalmente para el Mes de Diciembre
+# Para el problema consideraremos que los nacimientos se distribuyen de la misma manera mensualmente
+round((13373/12)*6)
+```
+
+Utilizando la distribucion de la poblacion total por AGEB en Toluca, calcularemos el numero total de niños entre 0 y 6 meses por AGEB al día de hoy. De tal manera que terminamos con la siguiente base:
+
+
+```{r, include=FALSE, message=FALSE, echo=FALSE, warning=FALSE}
+# Calculo de niños por ageb
+base_agebs %>%
+  mutate(
+    ninos_nacidos = 6686,
+    ninos_por_ageb = round(porcentaje_de_la_poblacion_ageb * ninos_nacidos)
+  ) %>%
+  select(ageb, ninos_por_ageb) %>%
+  rename(
+    cve_ageb = ageb ) %>%
+  write_csv("data/ninos_por_ageb.csv") -> ninos_por_ageb
+```
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{rlr}
+  \hline
+ & Cve. Ageb & Niños por ageb \\ 
+  \hline
+1 & 0241 & 50 \\ 
+  2 & 0294 & 59 \\ 
+  3 & 0307 & 40 \\ 
+  4 & 0330 & 42 \\ 
+  5 & 0345 & 33 \\ 
+  6 & 035A & 48 \\ 
+   \hline
+\end{tabular}
+\end{table}
+
+
+La base completa se puede consultar en *data/ninos_por_ageb.csv*.
+
+
+Mediante un mapa de tipo *choropleths* podemos observar esta densidad geograficamente.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+agebs_final <- sp::merge(agebs_toluca, ninos_por_ageb, by.x="cve_ageb", by.y="cve_ageb",all.x=FALSE)
+pal <- colorNumeric("YlGnBu", domain = agebs_final@data$ninos_por_ageb)
+
+# mapa chrolophet
+agebs_final %>%
+  leaflet() %>%
+  addProviderTiles("CartoDB.Positron") %>%
+  addPolygons(
+    weight=0.7,
+    fillOpacity=0.6,
+    fillColor = ~pal(ninos_por_ageb),
+    popup = ~ninos_por_ageb,
+    opacity=0.6
+  )
+```
+
+
+*¿Por qué hay menos AGEBS en el segundo mapa?*
+
+Este es un problema que logré identificar. Tal parece ser que algunas claves del AGEB (cve_ageb) en la base del censo, no corresponden con las claves de los agebs proporcionadas en los datos de cartografia rural y amanzanada del INEGI. Esto podria ser por algun cambio en los identificadores de los AGEBS entre el 2010 - fecha del censo - y el 2016 - fecha de los datos de cartografia-. La estimación para todos los AGEBS de Toluca se puede consultar en la base *data/ninos_por_ageb.csv*, aunque esta base no se puede representar de manera geografia al 100% por el problema mencionado anteriormente.
+
+#### Fuentes:
+
+* Agebs: http://www.beta.inegi.org.mx/app/biblioteca/ficha.html?upc=702825218829
+* CPV2010: http://www3.inegi.org.mx/sistemas/microdatos/Encuestas.aspx?c=34553
+* Proyecciones Conapo: http://www.conapo.gob.mx/es/CONAPO/Proyecciones_Datos

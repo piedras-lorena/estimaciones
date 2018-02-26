@@ -1,0 +1,251 @@
+---
+title: "Evaluación BOPS"
+author: "Manuel Ríos"
+date: ""
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+# carngando source
+source("load&clean.R")
+library(xtable)
+options(xtable.floating = FALSE)
+options(xtable.timestamp = "")
+options(xtable.comment = FALSE)
+```
+
+
+
+**Resumen**
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE, include=FALSE}
+## calcular diferencia entre ventas semanales antes y despues del programa por canal
+base_final %>%
+  group_by(program, type) %>%
+  summarize(
+    ventas_promedio = mean(sales)
+  ) %>%
+  spread(
+    program, ventas_promedio
+  ) %>%
+  mutate(
+    difernecia <- after-before
+  )
+  
+```
+
+
+Después de observar los datos se encontró que hay una disminución en las ventas promedio semanales para el canal online y el canal B&M después del inicio del programa de BOPS. Ambos canales tuvieron una disminución en su promedio de venta semanal de $ 2,000 USD y $ 7,545 USD respectivamente. 
+
+A pesar de esta caida después del programa, no hay alguna evidencia que indique que el programa es el causante de dicho desempeño. El programa parece no tener efectos negativos - ni positivos - en las ventas en ninguno de los dos canales, las variaciones en las ventas parecen ser mas efecto del alguna deficiencia operacional y de efectos del mercado.
+
+Mover el mercado de BOPS a Canada parece **no** ser una buena decisión de momento. El movimiento agregaría complejidad operacional sin beneficios visibles en un corto plazo. 
+
+Algunas observaciones del análisis:
+ 
+* El desempeño de ventas parece seguir el comportamiento del mercado. Como ejemplo podemos ver el aumento de las ventas en la última semana de Diciembre seguido de una disminucion en la primera semana de Enero, tendencia que puede ser ocasionada por epoca navideña.
+* El programa tiene un año en operacion y su introduccion ha sido compleja, lo que ha dificultado su adopcion. Quizas seria conveniente seguir con el programa en USA solamente.
+* Un beneficio de quitar el programa seria en la complejidad operacional. 
+* El que haya habido una disminución en las ventas parece ser consecuencia de un nulo crecimiento en los canales en general y no de algún impacto en especifico.
+* La compañia parece tener dificultades operativas que no solo impactan el desempeño de BOPS, también impactan el aumento de las ventas en general en el canal online al no verse beneficiados del crecimiento compuesto anual en las ventas online.
+
+
+*Metodología*
+
+Para el análisis de los datos se realizó un análisis de varianzas de los diferentes grupos que se pueden encontrar en las ventas para antes y despues del programa. Esto se complementó con una grafica que parece apoyar la hipotesis de que el programa no tuvo impacto alguno en las ventas.
+
+\clearpage
+
+**Análisis**
+
+
+Para comprobar algun impacto del programa en las ventas se hicieron 3 diferentes análisis de varianza (ANOVA) entre distintas interacciones:
+
+
+1) Calculamos si existe algún impacto del programa sobre las ventas totales en el canal online y en B&M.
+2) Calculamos algún impacto del programa sobre las ventas online y su interacción con la distancia de la DMA a una tienda.
+3) Calculamos la interaccion entre el programa y el país donde se encuentra la tienda para las ventas en tiendas B&M.
+
+Junto con la visualización, el análisis parece mostrar que el programa no tiene algún impacto en las ventas promedio semanales en ninguno de los dos canales. Esto sucede incluso si desagramos los canales para observar impactos en las tiendas o en las areas DMA. 
+
+*Análisis 1*
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, fig.align='center', fig.height=3, fig.width=7}
+base_final %>%
+  filter(week != 16) %>%
+  group_by(week, year) %>%
+  summarize(
+    ventas = mean(sales)
+  ) %>% 
+  ungroup() %>%
+  ggplot(aes(x=reorder(week, year),  y=ventas, group=1)) +
+  geom_line() +
+  geom_smooth(aes(group=1)) +
+  geom_vline(xintercept = 27) +
+  ylab("Ventas (USD)") +
+  xlab("Semana") +
+  ggtitle("Evolución venta promedio semanal últimos 12 meses")+
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  scale_y_continuous(label = comma)
+```
+
+*ANOVA*
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+base_final %>%
+  group_by(
+    id, type, program
+  ) %>%
+  summarize(
+    ventas = mean(sales)
+  ) -> group1
+res <- aov(ventas ~ program, data = group1)
+```
+
+ 
+\begin{table}[ht]
+\centering
+\begin{tabular}{lrrrrr}
+  \hline
+ & Df & Sum Sq & Mean Sq & F value & Pr($>$F) \\ 
+  \hline
+program & 1 & 1891139727.91 & 1891139727.91 & 1.85 & 0.1738 \\ 
+  Residuals & 586 & 597712518915.45 & 1019987233.64 &  &  \\ 
+   \hline
+\end{tabular}
+\end{table}
+
+Podemos observar que no hay significancia estadistica en los promedios de venta para toda la compañia antes y despues del programa (p=0.1738). Ademas, en la grafica podemos ver que la única caida significativa en las ventas despues del programa (linea vertical) fue en Enero, y fue acompañada por un gran aumento en las últimas semanas de Diciembre. Esto es debido a un comportamiento normal en el mercado por epocas de Navidad y Año Nuevo.
+
+\hfill
+
+*Analisis 2*
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, fig.align='center', fig.height=3, fig.width=7}
+base_final %>%
+  filter(week != 16) %>%
+  filter(type == "bm") %>%
+  group_by(week, year, country) %>%
+  summarize(
+    ventas = mean(sales)
+  ) %>% 
+  ungroup() %>% 
+  ggplot(aes(x=reorder(week, year),  y=ventas, group=country)) +
+  geom_line(aes(colour=country)) +
+  geom_smooth(aes(group=country)) +
+  geom_vline(xintercept = 27) +
+  ylab("Ventas (USD)") +
+  xlab("Semana") +
+  ggtitle("Evolución venta promedio semanal en tiendas B&M por país")+
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  scale_y_continuous(label = comma)
+```
+
+*ANOVA*
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+base_final %>%
+  filter(
+    type == "bm"
+  ) %>%
+  select(
+    -distance
+  ) %>%
+  group_by(id, program, country) %>%
+  summarize(
+    ventas = mean(sales) 
+  ) %>%
+  ungroup() %>%
+  mutate(
+    id = as.factor(id)
+  ) -> bm_final
+res <- aov(ventas ~ program * country, data = bm_final)
+```
+
+
+
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{lrrrrr}
+  \hline
+ & Df & Sum Sq & Mean Sq & F value & Pr($>$F) \\ 
+  \hline
+program & 1 & 2390800359.67 & 2390800359.67 & 2.74 & 0.0997 \\ 
+  country & 1 & 221507450.23 & 221507450.23 & 0.25 & 0.6149 \\ 
+  program:country & 1 & 95414410.85 & 95414410.85 & 0.11 & 0.7412 \\ 
+  Residuals & 164 & 143000615369.40 & 871954971.76 &  &  \\ 
+   \hline
+\end{tabular}
+\end{table}
+
+
+
+Desagragenado las ventas en las tiendas de B&M por país sucede lo mismo. No encontramos alguna significancia en la diferencia para los promedios de venta para antes y despues del programa. En la visualización se puede observar que despues del programa la tendencia se va un poco a la baja, este comportamiento se puede deber a la caida en el mes de Enero. 
+
+*Análisis 3*
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, fig.align='center', fig.height=3, fig.width=7}
+base_final %>%
+  filter(week != 16) %>%
+  filter(type == "online") %>%
+  group_by(week, year,distance) %>%
+  summarize(
+    ventas = mean(sales)
+  ) %>% 
+  ungroup() %>%
+  ggplot(aes(x=reorder(week, year),  y=ventas, group=distance)) +
+  geom_line(aes(colour=distance)) +
+  geom_smooth(aes(group=distance)) +
+  geom_vline(xintercept = 27) +
+  ylab("Ventas (USD)") +
+  xlab("Semana") +
+  ggtitle("Evolución venta promedio semanal online en diferentes DMA")+
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+*ANOVA*
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+base_final %>%
+  filter(
+    type == "online"
+  ) %>%
+  group_by(id, program, distance) %>%
+  summarize(
+    ventas = mean(sales) 
+  ) %>%
+  ungroup() %>%
+  mutate(
+    id = as.factor(id)
+  ) -> online_final
+res <- aov(ventas ~ program * distance, data = online_final)
+```
+
+
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{lrrrrr}
+  \hline
+ & Df & Sum Sq & Mean Sq & F value & Pr($>$F) \\ 
+  \hline
+program & 1 & 421495914.25 & 421495914.25 & 1.16 & 0.2825 \\ 
+  distance & 1 & 434437649.55 & 434437649.55 & 1.19 & 0.2752 \\ 
+  program:distance & 1 & 1509042.94 & 1509042.94 & 0.00 & 0.9487 \\ 
+  Residuals & 416 & 151388559039.43 & 363914805.38 &  &  \\ 
+   \hline
+\end{tabular}
+\end{table}
+
+\break
+
+Para las ventas online el resultado parece ser el mismo. No hay alguna interaccion entre la distancia y el programa que impacte las ventas despues del programa. La visualizacion nos confirma lo visto en las dos graficas anteriores, la disminución en las ventas promedio parece ser un efecto 
+de las bajas ventas a principio de año, esto parece ser por un comportamiento normal en el mercado.
+
